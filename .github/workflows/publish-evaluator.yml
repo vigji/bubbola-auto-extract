@@ -1,0 +1,87 @@
+name: Publish evaluator binary
+
+on:
+  workflow_dispatch:
+    inputs:
+      ground_truth_payload:
+        description: >-
+          JSON array following the evaluator schema. The payload is embedded into the release
+          binary and never stored elsewhere in the repository.
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: eval-${{ github.run_id }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r python/requirements.txt
+
+      - name: Write ground truth payload to disk
+        run: |
+          cat <<'JSON' > ground_truth.json
+${{ inputs.ground_truth_payload }}
+JSON
+
+      - name: Validate JSON payload
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          python - <<'PY'
+import json
+from pathlib import Path
+from bubbola_pipeline.generator import invoice_from_ground_truth_document
+raw = json.loads(Path('ground_truth.json').read_text())
+if not isinstance(raw, list) or not raw:
+    raise SystemExit('Payload must be a non-empty JSON array')
+invoice = invoice_from_ground_truth_document(raw[0])
+print(f'Loaded document {invoice.document_id}')
+PY
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release evaluator
+        env:
+          GROUND_TRUTH_PATH: ${{ github.workspace }}/ground_truth.json
+        run: cargo build --release --locked
+
+      - name: Capture payload fingerprint
+        run: |
+          echo "PAYLOAD_SHA=$(sha256sum ground_truth.json | cut -d' ' -f1)" >> "$GITHUB_ENV"
+
+      - name: Package evaluator binary
+        run: |
+          mkdir -p release/dist
+          cp target/release/pdf_eval release/dist/
+          tar -czf release/pdf_eval.tar.gz -C release/dist pdf_eval
+
+      - name: Securely delete payload copy
+        run: |
+          shred -u ground_truth.json
+
+      - name: Create release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Evaluation bundle ${{ env.RELEASE_TAG }}
+          body: |
+            * Embedded payload SHA256: `${{ env.PAYLOAD_SHA }}`
+            * Binary built from commit `${{ github.sha }}`
+          files: |
+            release/pdf_eval.tar.gz
