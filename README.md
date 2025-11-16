@@ -7,29 +7,32 @@ This repository now ships two cooperating components:
 
 Together they allow you to iterate locally on both the PDF extraction logic and the private evaluator that will be shared with solution developers.
 
+Shared assets such as the JSON schema and reusable fixtures live under `resources/`, while tooling (Dockerfiles, helper scripts) is consolidated under `tools/`.
+
 ## Shared extraction template
 
-Every extractor implementation must emit a payload that matches the JSON schema stored at `schema/page_extraction_template.json`. The schema is language-agnostic and documents every field requested for each parsed PDF page.
+Every extractor implementation must emit a payload that matches the JSON schema stored at `resources/schema/page_extraction_template.json`. The schema is language-agnostic and documents every field requested for each parsed PDF page.
 
 The repository exposes helpers so every language consumes exactly the same definition:
 
 - `pdf_eval --template` prints the schema verbatim so solvers can vendor it alongside the evaluator binary.
 - `pdf_eval::template::extraction_template()` returns the parsed `serde_json::Value` for Rust callers.
-- `python/template_loader.py` exposes `load_template()` and `template_path()` for Python prototypes.
+- `extractor/src/template_loader.py` exposes `load_template()` and `template_path()` for Python prototypes.
 
-Rust sources continue to live under `src/` while Python helpers remain under `python/` so cargo tooling keeps functioning without additional configuration. Keep new Python code in the `python/` tree (or another dedicated folder) instead of moving it into `src/`.
+Rust sources now live under `crates/evaluator/` while Python helpers remain scoped to `extractor/src/` so cargo tooling keeps functioning without additional configuration. Keep new Python code in the `extractor/` tree instead of moving it into the Rust workspace members.
 
 ## Python pipeline
 
-Install the lightweight dependencies once:
+Install the lightweight dependencies once (all commands assume the repository root and `PYTHONPATH=extractor/src` so the src-layout package resolves correctly):
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r python/requirements.txt
+export PYTHONPATH=extractor/src
+pip install -r extractor/requirements.txt
 ```
 
-The shared data model lives in `bubbola_pipeline/models.py` and is implemented with Pydantic to guarantee that the generator, extractor, and evaluator agree on the schema.
+The shared data model lives in `extractor/src/bubbola_pipeline/models.py` and is implemented with Pydantic to guarantee that the generator, extractor, and evaluator agree on the schema.
 
 ### Generate a demo ground truth JSON + PDF
 
@@ -90,7 +93,7 @@ Optional flags:
 
 ## End-to-end Rust test cycle
 
-The repository still ships dummy fixtures under `tests/data/` that exercise the Rust evaluator on its own:
+Shared dummy fixtures now live under `resources/fixtures/` so both the Rust and Python components reuse the same canonical data:
 
 ```bash
 # Embed the dummy ground truth and run the Rust test suite
@@ -98,7 +101,7 @@ cargo test
 
 # Build a release binary with the dummy data and run it against sample predictions
 cargo build --release
-./target/release/pdf_eval --predictions tests/data/dummy_predictions.json
+./target/release/pdf_eval --predictions resources/fixtures/dummy_predictions.json
 ```
 
 Both commands should report metrics matching the assertions in `tests/cli.rs`, demonstrating that the binary can be rebuilt locally, executed with test predictions, and distributed with only the compiled artifact.

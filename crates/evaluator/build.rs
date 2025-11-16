@@ -9,7 +9,10 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 
-const DEFAULT_GROUND_TRUTH: &str = "tests/data/dummy_ground_truth.json";
+const DEFAULT_GROUND_TRUTH: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../resources/fixtures/dummy_ground_truth.json"
+);
 const SCHEMA_VERSION: u32 = 1;
 
 #[derive(Deserialize)]
@@ -20,6 +23,7 @@ struct DocumentProbe {
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=../../resources/fixtures/dummy_ground_truth.json");
     println!("cargo:rerun-if-env-changed=GROUND_TRUTH_PATH");
     println!("cargo:rerun-if-env-changed=GROUND_TRUTH_JSON");
 

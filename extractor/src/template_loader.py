@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict
 
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-_TEMPLATE_PATH = _REPO_ROOT / "schema" / "page_extraction_template.json"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_TEMPLATE_PATH = _REPO_ROOT / "resources" / "schema" / "page_extraction_template.json"
 
 
 def template_path() -> Path:
