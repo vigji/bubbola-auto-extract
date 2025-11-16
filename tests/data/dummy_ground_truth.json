@@ -2,16 +2,33 @@
   {
     "document_id": "doc-1",
     "fields": {
-      "invoice_number": "1001",
-      "total": "123.45"
+      "invoice": {
+        "number": "1001",
+        "amounts": {
+          "subtotal": 100.0,
+          "tax": 23.45
+        }
+      },
+      "customer": {
+        "name": "Acme Corp",
+        "address": {
+          "city": "New York",
+          "country": "USA"
+        }
+      }
     }
   },
   {
     "document_id": "doc-2",
     "fields": {
-      "invoice_number": "1002",
-      "total": "55.00",
-      "customer": "Acme Corp"
+      "invoice": {
+        "number": "1002",
+        "amounts": {
+          "subtotal": 55.0,
+          "tax": 5.5
+        }
+      },
+      "notes": "Thanks for your business"
     }
   }
 ]
