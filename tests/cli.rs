@@ -1,0 +1,38 @@
+use assert_cmd::assert::OutputAssertExt;
+use assert_fs::prelude::*;
+use predicates::prelude::*;
+use std::process::Command;
+
+#[test]
+fn cli_scoring_matches_reference() {
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("pdf_eval"));
+    cmd.arg("--predictions")
+        .arg("tests/data/dummy_predictions.json");
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("\"overall_score\": 0.8518"));
+}
+
+#[test]
+fn cli_writes_output_file() {
+    let temp = assert_fs::TempDir::new().unwrap();
+    let output = temp.child("metrics.json");
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("pdf_eval"));
+    cmd.arg("--predictions")
+        .arg("tests/data/dummy_predictions.json")
+        .arg("--output")
+        .arg(output.path());
+    cmd.assert().success();
+
+    output.assert(predicate::path::exists());
+    output.assert(predicate::str::contains("\"document_coverage\": 1.0"));
+}
+
+#[test]
+fn cli_reports_build_info() {
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("pdf_eval"));
+    cmd.arg("--info");
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("\"schema_version\":1"));
+}
