@@ -36,3 +36,13 @@ fn cli_reports_build_info() {
         .success()
         .stdout(predicate::str::contains("\"schema_version\":1"));
 }
+
+#[test]
+fn cli_prints_template() {
+    let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("pdf_eval"));
+    cmd.arg("--template");
+    cmd.assert()
+        .success()
+        .stdout(predicate::str::contains("\"items\""))
+        .stdout(predicate::str::contains("\"pending_description\""));
+}
