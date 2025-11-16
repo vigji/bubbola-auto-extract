@@ -1,8 +1,55 @@
 # bubbola-auto-extract
 
-A fully self-contained evaluator for PDF parsing tasks. The evaluator is implemented in Rust and bakes a compressed copy of the ground truth directly into the compiled binary so it can be safely shared with solution developers.
+This repository now ships two cooperating components:
 
-## Building a Private Evaluator
+1. **Python data generation and extraction scripts** – generate deterministic ground truth data, render it as a PDF, and prototype an extractor that converts the PDF back into the structured payload.
+2. **Rust evaluator** – embeds the private ground truth and scores predictions emitted by any PDF parsing system.
+
+Together they allow you to iterate locally on both the PDF extraction logic and the private evaluator that will be shared with solution developers.
+
+## Python pipeline
+
+Install the lightweight dependencies once:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r python/requirements.txt
+```
+
+The shared data model lives in `bubbola_pipeline/models.py` and is implemented with Pydantic to guarantee that the generator, extractor, and evaluator agree on the schema.
+
+### Generate a demo ground truth JSON + PDF
+
+```bash
+python -m bubbola_pipeline.generator --output tests/generated
+```
+
+This writes `tests/generated/ground_truth.json` and `tests/generated/demo_invoice.pdf`.
+
+### Extract predictions from the PDF
+
+```bash
+python -m bubbola_pipeline.extractor tests/generated/demo_invoice.pdf --output tests/generated/predictions.json
+```
+
+The extractor performs a simple rule-based parse of the PDF content and emits predictions following the evaluator schema.
+
+### Full circle smoke test
+
+The `full_cycle` helper script exercises the entire flow described by the user story:
+
+1. Generate ground truth data and a PDF from the shared Pydantic models.
+2. Build and test the Rust evaluator with that ground truth baked in.
+3. Run the extractor against the generated PDF and evaluate the predictions with the Rust binary.
+
+```bash
+python -m bubbola_pipeline.full_cycle
+```
+
+All artifacts are written into `tests/generated/full_cycle/`. The script sets `GROUND_TRUTH_PATH` so `cargo test` and `cargo run` operate against the newly generated data.
+
+## Building the Rust evaluator
 
 1. Install the Rust toolchain (https://rustup.rs/).
 2. Provide the path to your private `ground_truth.json` via `GROUND_TRUTH_PATH` when building:
@@ -15,7 +62,7 @@ GROUND_TRUTH_PATH=/secure/ground_truth.json cargo build --release
 
 The build script validates the JSON structure, compresses it into an opaque blob, and records metadata such as the SHA256 hash of the original file. That metadata is emitted by the `--info` flag so collaborators can confirm which payload they are running without revealing its contents.
 
-## Running Evaluations
+## Running evaluations
 
 ```bash
 ./target/release/pdf_eval --predictions /path/to/predictions.json
@@ -27,9 +74,9 @@ Optional flags:
 - `--ground-truth local.json` – override the embedded payload (useful for local smoke tests before baking a private binary).
 - `--info` – print build metadata and exit.
 
-## End-to-End Test Cycle
+## End-to-end Rust test cycle
 
-The repository ships dummy fixtures under `tests/data/` that exercise the entire flow:
+The repository still ships dummy fixtures under `tests/data/` that exercise the Rust evaluator on its own:
 
 ```bash
 # Embed the dummy ground truth and run the Rust test suite
