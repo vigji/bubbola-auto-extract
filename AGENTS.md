@@ -1,6 +1,8 @@
-The aim of this project is to evolve a fine-tuned solution for LLM based parsing of documents. It consists of a evaluator component and an extractor component
+Use uv and ruff for the python part of the project.
 
-Use uv for the project - migrate pip projects if you find that legacy.
+The aim of this project is to evolve a fine-tuned solution for LLM based parsing of documents. It consists of a evaluator component and an extractor component.
+
+When you are tasked with developing / improving a solution, make sure you do not tamper the evaluation by changing the evaluator code. Always ask if you think that there is something wrong with evaluation and it should be fixed, unless i am explicitely asking for changes on the evaluator (or requiring propagations to it, eg, i am asking to update the schema for the parsing. in those cases this is fine).
 
 Make sure that you test exstensively your implementations. Do not submit code that has not run. If there is any blocker to execute the code you are writing hiw it should be executed, make sure you report it and give instructions for testing it.
 
