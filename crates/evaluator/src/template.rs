@@ -1,7 +1,10 @@
 use once_cell::sync::Lazy;
 use serde_json::Value;
 
-const RAW_TEMPLATE: &str = include_str!("../schema/page_extraction_template.json");
+const RAW_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../resources/schema/page_extraction_template.json"
+));
 
 static TEMPLATE_VALUE: Lazy<Value> = Lazy::new(|| {
     serde_json::from_str(RAW_TEMPLATE).expect("page extraction template must contain valid JSON")

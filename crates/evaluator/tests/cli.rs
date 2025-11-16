@@ -1,13 +1,22 @@
 use assert_cmd::assert::OutputAssertExt;
 use assert_fs::prelude::*;
 use predicates::prelude::*;
+use std::path::PathBuf;
 use std::process::Command;
+
+fn fixture_path(name: &str) -> String {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../resources/fixtures")
+        .join(name)
+        .to_string_lossy()
+        .into_owned()
+}
 
 #[test]
 fn cli_scoring_matches_reference() {
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("pdf_eval"));
     cmd.arg("--predictions")
-        .arg("tests/data/dummy_predictions.json");
+        .arg(fixture_path("dummy_predictions.json"));
     cmd.assert()
         .success()
         .stdout(predicate::str::contains("\"overall_score\": 0.8518"));
@@ -19,7 +28,7 @@ fn cli_writes_output_file() {
     let output = temp.child("metrics.json");
     let mut cmd = Command::new(assert_cmd::cargo::cargo_bin!("pdf_eval"));
     cmd.arg("--predictions")
-        .arg("tests/data/dummy_predictions.json")
+        .arg(fixture_path("dummy_predictions.json"))
         .arg("--output")
         .arg(output.path());
     cmd.assert().success();
