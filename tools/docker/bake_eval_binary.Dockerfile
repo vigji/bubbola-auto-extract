@@ -1,8 +1,12 @@
 FROM python:3.11-slim
 
-WORKDIR /workspace
-COPY pyproject.toml README.md ./
-COPY eval_binary ./eval_binary
-COPY scripts ./scripts
+RUN apt-get update && apt-get install -y curl \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+ENV PATH="/root/.cargo/bin:${PATH}"
 
-ENTRYPOINT ["python", "scripts/bake_eval_binary.py"]
+WORKDIR /workspace
+COPY . .
+RUN uv pip install --system ./extractor
+
+ENTRYPOINT ["uv", "run", "--project", "extractor", "python", "scripts/bake_eval_binary.py"]

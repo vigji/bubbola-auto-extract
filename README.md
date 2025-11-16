@@ -23,13 +23,13 @@ Rust sources now live under `crates/evaluator/` while Python helpers remain scop
 
 ## Python pipeline
 
-Install the lightweight dependencies once (all commands assume the repository root and `PYTHONPATH=extractor/src` so the src-layout package resolves correctly):
+Install the lightweight dependencies once with [uv](https://github.com/astral-sh/uv). The commands below assume the repository root and create a virtual environment tracked at `.venv`:
 
 ```bash
-python -m venv .venv
+uv venv
 source .venv/bin/activate
-export PYTHONPATH=extractor/src
-pip install -r extractor/requirements.txt
+uv pip install --upgrade pip
+uv pip install --editable extractor
 ```
 
 The shared data model lives in `extractor/src/bubbola_pipeline/models.py` and is implemented with Pydantic to guarantee that the generator, extractor, and evaluator agree on the schema.
@@ -37,7 +37,7 @@ The shared data model lives in `extractor/src/bubbola_pipeline/models.py` and is
 ### Generate a demo ground truth JSON + PDF
 
 ```bash
-python -m bubbola_pipeline.generator --output tests/generated
+uv run --project extractor bubbola-generate --output tests/generated
 ```
 
 This writes `tests/generated/ground_truth.json` and `tests/generated/demo_invoice.pdf`.
@@ -47,7 +47,7 @@ Pass `--ground-truth path/to/payload.json` to regenerate the PDF and JSON from a
 ### Extract predictions from the PDF
 
 ```bash
-python -m bubbola_pipeline.extractor tests/generated/demo_invoice.pdf --output tests/generated/predictions.json
+uv run --project extractor bubbola-extract tests/generated/demo_invoice.pdf --output tests/generated/predictions.json
 ```
 
 The extractor performs a simple rule-based parse of the PDF content and emits predictions following the evaluator schema.
@@ -61,7 +61,7 @@ The `full_cycle` helper script exercises the entire flow described by the user s
 3. Run the extractor against the generated PDF and evaluate the predictions with the Rust binary.
 
 ```bash
-python -m bubbola_pipeline.full_cycle
+uv run --project extractor bubbola-full-cycle
 ```
 
 All artifacts are written into `tests/generated/full_cycle/`. The script sets `GROUND_TRUTH_PATH` so `cargo test` and `cargo run` operate against the newly generated data.
@@ -147,7 +147,7 @@ The JSON file is never uploaded to the repository itself; it only flows through 
 `run-release-evaluation.yml` is also triggered manually via **Run workflow** (or the REST API) and accepts the `release_tag` produced by the workflow above plus a `pdf_path` pointing at the PDF that already lives in the repository. It performs the following steps:
 
 1. Downloads `pdf_eval.tar.gz` from the requested release.
-2. Treats `python -m bubbola_pipeline.extractor <pdf_path>` as the default submission, generating `payload/predictions.json`.
+2. Treats `uv run --project extractor bubbola-extract <pdf_path>` as the default submission, generating `payload/predictions.json`.
 3. Executes the downloaded evaluator against those predictions and prints the metrics in the workflow logs.
 4. Uploads `evaluation-metrics` artifacts (`metrics.json` + the stdout log) so they can be fetched from any terminal.
 

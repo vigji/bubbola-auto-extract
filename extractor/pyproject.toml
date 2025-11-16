@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bubbola-pipeline"
+version = "0.1.0"
+description = "Synthetic PDF generation and extraction helpers for the Bubbola evaluator"
+authors = [{ name = "Bubbola Research" }]
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic>=1.10,<3",
+    "fpdf2>=2.7",
+    "PyPDF2>=3",
+]
+
+[project.scripts]
+bubbola-generate = "bubbola_pipeline.generator:main"
+bubbola-extract = "bubbola_pipeline.extractor:main"
+bubbola-full-cycle = "bubbola_pipeline.full_cycle:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

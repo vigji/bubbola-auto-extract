@@ -1,3 +1,0 @@
-pydantic>=1.10,<3
-fpdf2>=2.7
-PyPDF2>=3.0
