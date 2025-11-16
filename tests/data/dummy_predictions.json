@@ -1,0 +1,30 @@
+[
+  {
+    "document_id": "doc-1",
+    "fields": {
+      "invoice": {
+        "number": "1001A",
+        "amounts": {"subtotal": 95.0, "tax": 23.45}
+      },
+      "customer": {
+        "name": "Acme Corporation",
+        "address": {"city": "New York", "country": "United States"}
+      }
+    }
+  },
+  {
+    "document_id": "doc-2",
+    "fields": {
+      "invoice": {
+        "number": "1002",
+        "amounts": {"subtotal": 60.0}
+      },
+      "notes": "Thanks for business",
+      "extra": "ignored"
+    }
+  },
+  {
+    "document_id": "doc-3",
+    "fields": {"foo": "bar"}
+  }
+]
