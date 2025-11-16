@@ -1,29 +1,25 @@
 # bubbola-auto-extract
 
-This repository now ships two cooperating components:
+This repository bundles everything required to iterate on the Bubbola PDF parsing challenge. It exposes:
 
-1. **Python data generation and extraction scripts** – generate deterministic ground truth data, render it as a PDF, and prototype an extractor that converts the PDF back into the structured payload.
-2. **Rust evaluator** – embeds the private ground truth and scores predictions emitted by any PDF parsing system.
+1. **Python generation + extraction helpers (`extractor/`)** – synthesize a deterministic ground truth JSON payload, render it as a PDF, and implement a reference parser that converts the PDF back into structured data.
+2. **Rust evaluator (`crates/evaluator/`)** – embed the private payload into a redistributable binary that scores predictions produced by any extractor.
 
-Together they allow you to iterate locally on both the PDF extraction logic and the private evaluator that will be shared with solution developers.
+Shared assets such as the JSON schema and reusable fixtures now live under `resources/`, while release tooling (Dockerfiles, helper scripts) is consolidated in `tools/`.
 
-Shared assets such as the JSON schema and reusable fixtures live under `resources/`, while tooling (Dockerfiles, helper scripts) is consolidated under `tools/`.
+## Repository layout
 
-## Shared extraction template
+| Path | Description |
+| ---- | ----------- |
+| `extractor/` | Python package with the generator, extractor, and orchestration CLIs. Installed with [uv](https://github.com/astral-sh/uv). |
+| `crates/evaluator/` | Standalone Rust crate that embeds the ground-truth payload and exposes the `pdf_eval` binary. |
+| `resources/schema/` | Canonical evaluator schema (`page_extraction_template.json`). |
+| `resources/fixtures/` | Dummy ground-truth + predictions used in tests and local smoke runs. |
+| `tools/docker/` | Container definitions, e.g., to run the Python full-cycle helper in isolation. |
 
-Every extractor implementation must emit a payload that matches the JSON schema stored at `resources/schema/page_extraction_template.json`. The schema is language-agnostic and documents every field requested for each parsed PDF page.
+## Python pipeline (uv powered)
 
-The repository exposes helpers so every language consumes exactly the same definition:
-
-- `pdf_eval --template` prints the schema verbatim so solvers can vendor it alongside the evaluator binary.
-- `pdf_eval::template::extraction_template()` returns the parsed `serde_json::Value` for Rust callers.
-- `extractor/src/template_loader.py` exposes `load_template()` and `template_path()` for Python prototypes.
-
-Rust sources now live under `crates/evaluator/` while Python helpers remain scoped to `extractor/src/` so cargo tooling keeps functioning without additional configuration. Keep new Python code in the `extractor/` tree instead of moving it into the Rust workspace members.
-
-## Python pipeline
-
-Install the lightweight dependencies once with [uv](https://github.com/astral-sh/uv). The commands below assume the repository root and create a virtual environment tracked at `.venv`:
+All Python commands assume you are at the repository root. Create and reuse a virtual environment managed by uv:
 
 ```bash
 uv venv
@@ -32,17 +28,13 @@ uv pip install --upgrade pip
 uv pip install --editable extractor
 ```
 
-The shared data model lives in `extractor/src/bubbola_pipeline/models.py` and is implemented with Pydantic to guarantee that the generator, extractor, and evaluator agree on the schema.
-
 ### Generate a demo ground truth JSON + PDF
 
 ```bash
 uv run --project extractor bubbola-generate --output tests/generated
 ```
 
-This writes `tests/generated/ground_truth.json` and `tests/generated/demo_invoice.pdf`.
-
-Pass `--ground-truth path/to/payload.json` to regenerate the PDF and JSON from a payload that already follows the evaluator schema (the same shape accepted by the CI workflows described below).
+The command writes `tests/generated/ground_truth.json` and `tests/generated/demo_invoice.pdf`. Pass `--ground-truth path/to/payload.json` to rebuild the PDF from a payload that already matches the evaluator schema (for example, the JSON accepted by the CI workflows below).
 
 ### Extract predictions from the PDF
 
@@ -50,77 +42,77 @@ Pass `--ground-truth path/to/payload.json` to regenerate the PDF and JSON from a
 uv run --project extractor bubbola-extract tests/generated/demo_invoice.pdf --output tests/generated/predictions.json
 ```
 
-The extractor performs a simple rule-based parse of the PDF content and emits predictions following the evaluator schema.
+The extractor performs a rule-based parse of the synthetic PDF and emits predictions that satisfy the evaluator schema enforced by `resources/schema/page_extraction_template.json`.
 
-### Full circle smoke test
-
-The `full_cycle` helper script exercises the entire flow described by the user story:
-
-1. Generate ground truth data and a PDF from the shared Pydantic models.
-2. Build and test the Rust evaluator with that ground truth baked in.
-3. Run the extractor against the generated PDF and evaluate the predictions with the Rust binary.
+### Run the full-cycle smoke test
 
 ```bash
 uv run --project extractor bubbola-full-cycle
 ```
 
-All artifacts are written into `tests/generated/full_cycle/`. The script sets `GROUND_TRUTH_PATH` so `cargo test` and `cargo run` operate against the newly generated data.
+`bubbola-full-cycle` exercises the entire pipeline:
 
-## Building the Rust evaluator
+1. Generate ground truth data and the PDF from the shared Pydantic models (`extractor/src/bubbola_pipeline/models.py`).
+2. Build and test the Rust evaluator with `GROUND_TRUTH_PATH` pointing at the newly written JSON.
+3. Execute the extractor against the PDF and evaluate the resulting predictions via the compiled `pdf_eval` binary.
 
-1. Install the Rust toolchain (https://rustup.rs/).
-2. Provide the path to your private `ground_truth.json` via `GROUND_TRUTH_PATH` when building:
+All scratch artifacts live under `tests/generated/full_cycle/`. Override the build profile with `--cargo-profile release` to bake a release-mode evaluator.
+
+## Rust evaluator
+
+### Building the evaluator with private data
+
+1. Install the Rust toolchain via [rustup](https://rustup.rs/).
+2. Provide the path to your private `ground_truth.json` through the `GROUND_TRUTH_PATH` environment variable (or inline JSON via `GROUND_TRUTH_JSON`).
+3. Build the workspace from the repository root:
 
 ```bash
-GROUND_TRUTH_PATH=/secure/ground_truth.json cargo build --release
+GROUND_TRUTH_PATH=/secure/ground_truth.json cargo build --release --locked
 ```
 
-3. The resulting executable lives at `target/release/pdf_eval`. Distribute only the binary—none of the private data is stored in the repository.
+The resulting binary is available at `target/release/pdf_eval`. Only the compiled executable needs to be distributed; the payload is compressed and embedded inside the binary. `pdf_eval --info` prints metadata (schema version, payload hash, source commit) so collaborators can confirm which payload is bundled without revealing its contents.
 
-The build script validates the JSON structure, compresses it into an opaque blob, and records metadata such as the SHA256 hash of the original file. That metadata is emitted by the `--info` flag so collaborators can confirm which payload they are running without revealing its contents.
-
-## Running evaluations
+### Running evaluations
 
 ```bash
 ./target/release/pdf_eval --predictions /path/to/predictions.json
 ```
 
-Optional flags:
+Useful flags:
 
-- `--output metrics.json` – write the metrics JSON to disk in addition to printing it.
-- `--ground-truth local.json` – override the embedded payload (useful for local smoke tests before baking a private binary).
-- `--info` – print build metadata and exit.
+- `--output metrics.json` – also persist the metrics to disk.
+- `--ground-truth local.json` – temporarily override the embedded payload (handy for local smoke tests before baking a private binary).
+- `--template` – print the evaluator schema (the same JSON stored in `resources/schema/page_extraction_template.json`).
 
-## End-to-end Rust test cycle
+### End-to-end Rust test cycle
 
-Shared dummy fixtures now live under `resources/fixtures/` so both the Rust and Python components reuse the same canonical data:
+The shared fixtures under `resources/fixtures/` ensure both Rust and Python components validate against the same canonical data:
 
 ```bash
-# Embed the dummy ground truth and run the Rust test suite
 cargo test
-
-# Build a release binary with the dummy data and run it against sample predictions
 cargo build --release
 ./target/release/pdf_eval --predictions resources/fixtures/dummy_predictions.json
 ```
 
-Both commands should report metrics matching the assertions in `tests/cli.rs`, demonstrating that the binary can be rebuilt locally, executed with test predictions, and distributed with only the compiled artifact.
+Both commands should match the assertions defined in `crates/evaluator/tests/cli.rs`, proving the evaluator can be rebuilt locally, executed with sample predictions, and redistributed as a standalone binary.
 
-## Automation pipelines
+## Automation and workflows
 
-Two GitHub Actions workflows automate the flows described above. Both workflows live under `.github/workflows/`.
+The repository ships three GitHub Actions workflows under `.github/workflows/`.
 
-### 1. Publish evaluator binary
+### 1. Full-cycle CI (`full-cycle.yml`)
 
-`publish-evaluator.yml` is triggered manually through **Run workflow** in the GitHub UI or remotely through the REST API. The dispatcher pastes the private ground-truth JSON array into the `ground_truth_payload` input. The workflow:
+Runs on pushes and pull requests. The workflow installs the Rust toolchain plus uv, installs the Python extractor package (`uv pip install --system ./extractor`), and runs `uv run --project extractor bubbola-full-cycle --work-dir tests/generated/full_cycle_ci`. This keeps the end-to-end loop green in CI and ensures both toolchains work with the current tree layout.
 
-1. Stores the payload on disk only long enough to validate that it matches the shared schema.
-2. Builds a release-mode `pdf_eval` binary with `GROUND_TRUTH_PATH` pointing at the uploaded JSON.
-3. Captures the payload hash for auditability, securely deletes `ground_truth.json`, and creates a release tagged `eval-<run-id>` containing **only** the compiled binary (`pdf_eval.tar.gz`).
+### 2. Publish evaluator binary (`publish-evaluator.yml`)
 
-The JSON payload never leaves the runner's ephemeral filesystem; the released artifact embeds it inside the Rust binary.
+Triggered manually through **Run workflow** (or via the workflow-dispatch REST API). The dispatcher pastes the private ground-truth JSON array into the `ground_truth_payload` input. The workflow:
 
-Trigger the workflow from a local terminal (no manual UI steps required) by POSTing to the GitHub Actions workflow-dispatch endpoint. The helper snippet below reads your local payload, escapes it with `jq`, and injects it into the workflow input:
+1. Writes the payload to `ground_truth.json` and validates that it matches the shared schema by importing `bubbola_pipeline.generator` through uv (`uv run --project extractor python - <<'PY' ...`).
+2. Builds a release `pdf_eval` binary with `GROUND_TRUTH_PATH` pointing at the uploaded JSON.
+3. Captures the payload hash for auditability, securely deletes `ground_truth.json`, and creates a release tagged `eval-<run-id>` containing **only** `pdf_eval.tar.gz`.
+
+Trigger the workflow from a local terminal without touching the UI:
 
 ```bash
 GH_TOKEN=ghp_yourtoken              # Needs repo + workflow scope
@@ -140,24 +132,10 @@ curl -L \
     '{ref: $ref, inputs: {ground_truth_payload: $payload}}')
 ```
 
-The JSON file is never uploaded to the repository itself; it only flows through this HTTPS call into the transient runner that builds the binary.
+### 3. Run release evaluation (`run-release-evaluation.yml`)
 
-### 2. Run release evaluation
+Also triggered manually. It accepts the `release_tag` produced by the publish workflow plus a `pdf_path` that already exists in the repository. The workflow downloads the chosen evaluator release, runs the reference Python extractor via uv (`uv run --project extractor bubbola-extract <pdf_path>`), and executes the evaluator against those predictions. The metrics (`metrics.json` + stdout log) are uploaded as the `evaluation-metrics` artifact so they can be fetched with `gh run download`.
 
-`run-release-evaluation.yml` is also triggered manually via **Run workflow** (or the REST API) and accepts the `release_tag` produced by the workflow above plus a `pdf_path` pointing at the PDF that already lives in the repository. It performs the following steps:
+## Containerized helper
 
-1. Downloads `pdf_eval.tar.gz` from the requested release.
-2. Treats `uv run --project extractor bubbola-extract <pdf_path>` as the default submission, generating `payload/predictions.json`.
-3. Executes the downloaded evaluator against those predictions and prints the metrics in the workflow logs.
-4. Uploads `evaluation-metrics` artifacts (`metrics.json` + the stdout log) so they can be fetched from any terminal.
-
-Provide the PDF path relative to the repository root (for example, `docs/contest_invoice.pdf`). Keep the matching ground-truth JSON on your local machine; only the PDF needs to be tracked in Git for solvers to test against.
-
-Fetch results locally with:
-
-```bash
-gh run download <run-id> -n evaluation-metrics --repo <owner>/<repo>
-cat metrics.json
-```
-
-The `<run-id>` is visible in the Actions UI. This makes the evaluation output scriptable for local workflows.
+`tools/docker/bake_eval_binary.Dockerfile` builds a Python + uv + Rust environment that copies the current workspace layout (`Cargo.toml`, `crates/`, `extractor/`, `resources/`) and runs `bubbola-full-cycle` in release mode. Use it when you need an isolated container that exercises the new directory structure without polluting your host toolchains.
