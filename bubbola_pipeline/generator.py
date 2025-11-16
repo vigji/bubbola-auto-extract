@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from pathlib import Path
-from typing import Tuple
+from typing import Dict, Tuple
 
 from fpdf import FPDF
 
@@ -70,23 +71,59 @@ def _write_pdf(invoice: Invoice, pdf_path: Path) -> None:
     pdf.output(str(pdf_path))
 
 
-def generate_dataset(output_dir: Path = DEFAULT_OUTPUT_DIR) -> Tuple[Path, Path]:
-    """Generate a JSON ground truth file alongside a PDF rendering."""
-
-    invoice = build_sample_invoice()
+def _write_dataset(invoice: Invoice, output_dir: Path) -> Tuple[Path, Path]:
     output_dir.mkdir(parents=True, exist_ok=True)
-
     ground_truth_path = output_dir / "ground_truth.json"
     pdf_path = output_dir / "demo_invoice.pdf"
 
     documents = [invoice.to_ground_truth_document()]
-    ground_truth_path.write_text(
-        __import__("json").dumps(documents, indent=2),
-        encoding="utf-8",
-    )
-
+    ground_truth_path.write_text(json.dumps(documents, indent=2), encoding="utf-8")
     _write_pdf(invoice, pdf_path)
     return ground_truth_path, pdf_path
+
+
+def generate_dataset(output_dir: Path = DEFAULT_OUTPUT_DIR) -> Tuple[Path, Path]:
+    """Generate a JSON ground truth file alongside a PDF rendering."""
+
+    invoice = build_sample_invoice()
+    return _write_dataset(invoice, output_dir)
+
+
+def invoice_from_ground_truth_document(document: Dict) -> Invoice:
+    """Instantiate an :class:`Invoice` from the evaluator JSON schema."""
+
+    fields = document["fields"]
+    return Invoice(
+        document_id=document["document_id"],
+        company_name=fields["company_name"],
+        company_address=fields["company_address"],
+        customer_name=fields["customer_name"],
+        customer_address=fields["customer_address"],
+        issue_date=date.fromisoformat(fields["issue_date"]),
+        due_date=date.fromisoformat(fields["due_date"]),
+        notes=fields.get("notes", ""),
+        line_items=[
+            LineItem(
+                description=item["description"],
+                quantity=item["quantity"],
+                unit_price=item["unit_price"],
+            )
+            for item in fields["line_items"]
+        ],
+    )
+
+
+def render_dataset_from_ground_truth(
+    ground_truth_path: Path, output_dir: Path = DEFAULT_OUTPUT_DIR
+) -> Tuple[Path, Path]:
+    """Rebuild the PDF from a JSON payload produced by the evaluator schema."""
+
+    payload = json.loads(ground_truth_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, list) or not payload:
+        raise ValueError("Ground truth payload must be a non-empty JSON array")
+
+    invoice = invoice_from_ground_truth_document(payload[0])
+    return _write_dataset(invoice, output_dir)
 
 
 def main() -> None:  # pragma: no cover - manual entry point
@@ -99,8 +136,20 @@ def main() -> None:  # pragma: no cover - manual entry point
         default=DEFAULT_OUTPUT_DIR,
         help="Directory where the JSON and PDF artifacts will be written",
     )
+    parser.add_argument(
+        "--ground-truth",
+        type=Path,
+        help=(
+            "Optional path to an existing evaluator-style JSON payload. When provided, the script "
+            "rehydrates the PDF and rewrites the JSON inside the output directory."
+        ),
+    )
     args = parser.parse_args()
-    ground_truth, pdf = generate_dataset(args.output)
+
+    if args.ground_truth:
+        ground_truth, pdf = render_dataset_from_ground_truth(args.ground_truth, args.output)
+    else:
+        ground_truth, pdf = generate_dataset(args.output)
     print(f"Wrote {ground_truth}")
     print(f"Wrote {pdf}")
 
