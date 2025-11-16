@@ -1,0 +1,17 @@
+[
+  {
+    "document_id": "doc-1",
+    "fields": {
+      "invoice_number": "1001",
+      "total": "123.45"
+    }
+  },
+  {
+    "document_id": "doc-2",
+    "fields": {
+      "invoice_number": "1002",
+      "total": "55.00",
+      "customer": "Acme Corp"
+    }
+  }
+]
