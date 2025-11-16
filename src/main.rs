@@ -8,6 +8,7 @@ use pdf_eval::evaluator::{
     load_predictions,
 };
 use pdf_eval::metrics::EvaluationMetrics;
+use pdf_eval::template;
 
 #[derive(Debug, Parser)]
 #[command(about = "Score prediction JSON files against an embedded ground truth.")]
@@ -23,6 +24,9 @@ struct Args {
 
     #[arg(long, help = "Print build metadata and exit")]
     info: bool,
+
+    #[arg(long, help = "Print the extraction template JSON and exit")]
+    template: bool,
 }
 
 fn main() -> Result<()> {
@@ -30,6 +34,11 @@ fn main() -> Result<()> {
 
     if args.info {
         println!("{}", embedded::build_info_json());
+        return Ok(());
+    }
+
+    if args.template {
+        println!("{}", template::extraction_template_json());
         return Ok(());
     }
 

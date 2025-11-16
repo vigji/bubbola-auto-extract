@@ -530,6 +530,7 @@ dependencies = [
  "chrono",
  "clap",
  "flate2",
+ "once_cell",
  "predicates",
  "rustc_version",
  "serde",

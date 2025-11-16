@@ -7,6 +7,18 @@ This repository now ships two cooperating components:
 
 Together they allow you to iterate locally on both the PDF extraction logic and the private evaluator that will be shared with solution developers.
 
+## Shared extraction template
+
+Every extractor implementation must emit a payload that matches the JSON schema stored at `schema/page_extraction_template.json`. The schema is language-agnostic and documents every field requested for each parsed PDF page.
+
+The repository exposes helpers so every language consumes exactly the same definition:
+
+- `pdf_eval --template` prints the schema verbatim so solvers can vendor it alongside the evaluator binary.
+- `pdf_eval::template::extraction_template()` returns the parsed `serde_json::Value` for Rust callers.
+- `python/template_loader.py` exposes `load_template()` and `template_path()` for Python prototypes.
+
+Rust sources continue to live under `src/` while Python helpers remain under `python/` so cargo tooling keeps functioning without additional configuration. Keep new Python code in the `python/` tree (or another dedicated folder) instead of moving it into `src/`.
+
 ## Python pipeline
 
 Install the lightweight dependencies once:
