@@ -19,13 +19,12 @@ Shared assets such as the JSON schema and reusable fixtures now live under `reso
 
 ## Python pipeline (uv powered)
 
-All Python commands assume you are at the repository root. Create and reuse a virtual environment managed by uv:
+All Python commands assume you are at the repository root. Install the extractor package into an isolated uv-managed
+environment (stored under `extractor/.venv`) and reuse it for local runs:
 
 ```bash
-uv venv
-source .venv/bin/activate
-uv pip install --upgrade pip
-uv pip install --editable extractor
+uv sync --project extractor
+source extractor/.venv/bin/activate
 ```
 
 ### Generate a demo ground truth JSON + PDF
@@ -102,7 +101,7 @@ The repository ships three GitHub Actions workflows under `.github/workflows/`.
 
 ### 1. Full-cycle CI (`full-cycle.yml`)
 
-Runs on pushes and pull requests. The workflow installs the Rust toolchain plus uv, installs the Python extractor package (`uv pip install --system ./extractor`), and runs `uv run --project extractor bubbola-full-cycle --work-dir tests/generated/full_cycle_ci`. This keeps the end-to-end loop green in CI and ensures both toolchains work with the current tree layout.
+Runs on pushes and pull requests. The workflow installs the Rust toolchain plus uv, syncs the Python extractor package (`uv sync --project extractor --frozen`), and runs `uv run --project extractor bubbola-full-cycle --work-dir tests/generated/full_cycle_ci`. This keeps the end-to-end loop green in CI and ensures both toolchains work with the current tree layout.
 
 ### 2. Publish evaluator binary (`publish-evaluator.yml`)
 
@@ -138,4 +137,4 @@ Also triggered manually. It accepts the `release_tag` produced by the publish wo
 
 ## Containerized helper
 
-`tools/docker/bake_eval_binary.Dockerfile` builds a Python + uv + Rust environment that copies the current workspace layout (`Cargo.toml`, `crates/`, `extractor/`, `resources/`) and runs `bubbola-full-cycle` in release mode. Use it when you need an isolated container that exercises the new directory structure without polluting your host toolchains.
+`tools/docker/bake_eval_binary.Dockerfile` builds a Python + uv + Rust environment that copies the current workspace layout (`Cargo.toml`, `crates/`, `extractor/`, `resources/`), syncs the extractor dependencies with `uv sync --project extractor`, and runs `bubbola-full-cycle` in release mode. Use it when you need an isolated container that exercises the new directory structure without polluting your host toolchains.

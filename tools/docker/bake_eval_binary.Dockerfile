@@ -17,7 +17,7 @@ COPY crates ./crates
 COPY extractor ./extractor
 COPY resources ./resources
 
-RUN uv pip install --system ./extractor
+RUN uv sync --project extractor --frozen
 
 ENTRYPOINT [
     "uv",

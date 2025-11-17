@@ -29,8 +29,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install extractor package
-        run: uv pip install --system ./extractor
+      - name: Sync extractor dependencies
+        run: uv sync --project extractor --frozen
 
       - name: Download evaluator binary
         env:
