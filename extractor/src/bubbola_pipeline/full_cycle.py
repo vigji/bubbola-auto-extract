@@ -37,6 +37,8 @@ def run_full_cycle(
     work_dir.mkdir(parents=True, exist_ok=True)
     ground_truth_path, pdf_path = generator.generate_dataset(work_dir)
 
+    ground_truth_path = ground_truth_path.resolve()
+
     env = os.environ.copy()
     env["GROUND_TRUTH_PATH"] = str(ground_truth_path)
     _run(_build_command(cargo_profile), env=env)
